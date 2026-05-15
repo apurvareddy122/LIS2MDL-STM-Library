@@ -1,27 +1,29 @@
 #include "lis2mdl.h"
 
 /*SPI Functions*/
+
+#if defined(HAL_SPI_MODULE_ENABLED)
 static HAL_StatusTypeDef LIS2MDL_SPI_Write(lis2mdl_t *dev, uint8_t reg, uint8_t *data, uint16_t len)
 {
 	HAL_StatusTypeDef ret;
 
 	uint8_t header = (reg & 0x7F) << 1;
 
-	HAL_GPIO_WritePin(dev->cs_port, dev->cs_pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(dev->bus_cfg.spi.cs_port, dev->bus_cfg.spi.cs_pin, GPIO_PIN_RESET);
 	
-	ret = HAL_SPI_Transmit(dev->hspi, &header, 1, 1000);
+	ret = HAL_SPI_Transmit(dev->bus_cfg.spi.hspi, &header, 1, LIS2MDL_SPI_TIMEOUT_MS);
 	if (ret != HAL_OK){
-		HAL_GPIO_WritePin(dev->cs_port, dev->cs_pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(dev->bus_cfg.spi.cs_port, dev->bus_cfg.spi.cs_pin, GPIO_PIN_SET);
 		return ret;
 	}
 	
-	ret = HAL_SPI_Transmit(dev->hspi, data, len, 1000);
+	ret = HAL_SPI_Transmit(dev->bus_cfg.spi.hspi, data, len, LIS2MDL_SPI_TIMEOUT_MS);
 	if (ret != HAL_OK){
-		HAL_GPIO_WritePin(dev->cs_port, dev->cs_pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(dev->bus_cfg.spi.cs_port, dev->bus_cfg.spi.cs_pin, GPIO_PIN_SET);
 		return ret;
 	}
 	
-	HAL_GPIO_WritePin(dev->cs_port, dev->cs_pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(dev->bus_cfg.spi.cs_port, dev->bus_cfg.spi.cs_pin, GPIO_PIN_SET);
 	
 	return HAL_OK;
 }
@@ -31,21 +33,21 @@ static HAL_StatusTypeDef LIS2MDL_SPI_Read(lis2mdl_t *dev, uint8_t reg, uint8_t *
 	HAL_StatusTypeDef ret;
 	uint8_t header = ((reg & 0x7F) << 1) | 0x01;
 	
-	HAL_GPIO_WritePin(dev->cs_port, dev->cs_pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(dev->bus_cfg.spi.cs_port, dev->bus_cfg.spi.cs_pin, GPIO_PIN_RESET);
 	
-	ret = HAL_SPI_Transmit(dev->hspi, &header, 1, 1000);
+	ret = HAL_SPI_Transmit(dev->hspi, &header, 1, LIS2MDL_SPI_TIMEOUT_MS);
 	if (ret != HAL_OK){
-		HAL_GPIO_WritePin(dev->cs_port, dev->cs_pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(dev->bus_cfg.spi.cs_port, dev->bus_cfg.spi.cs_pin, GPIO_PIN_SET);
 		return ret;
 	}
 	
-	ret = HAL_SPI_Receive(dev->hspi, data, len, 1000);
+	ret = HAL_SPI_Receive(dev->bus_cfg.spi.hspi, data, len, LIS2MDL_SPI_TIMEOUT_MS);
 	if (ret != HAL_OK){
-		HAL_GPIO_WritePin(dev->cs_port, dev->cs_pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(dev->bus_cfg.spi.cs_port, dev->bus_cfg.spi.cs_pin, GPIO_PIN_SET);
 		return ret;
 	}
 	
-	HAL_GPIO_WritePin(dev->cs_port, dev->cs_pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(dev->bus_cfg.spi.cs_port, dev->bus_cfg.spi.cs_pin, GPIO_PIN_SET);
 	
 	return HAL_OK;
 }
@@ -58,12 +60,15 @@ static HAL_StatusTypeDef LIS2MDL_SPI_Init(lis2mdl_t *dev)
 	
 	return HAL_OK;
 }
+#endif
 
 /*I2C Functions*/
+
+#if defined(HAL_I2C_MODULE_ENABLED)
 static HAL_StatusTypeDef LIS2MDL_I2C_Write(lis2mdl_t *dev,uint8_t reg, uint8_t *data, uint16_t len)
 {
 	HAL_StatusTypeDef ret;
-	ret = HAL_I2C_Mem_Write(dev->hi2c,I2C_ADDR << 1,reg,I2C_MEMADD_SIZE_8BIT,data,len,1000);
+	ret = HAL_I2C_Mem_Write(dev->bus_cfg.i2c.hi2c,LIS2MDL_I2C_ADDR << 1,reg,I2C_MEMADD_SIZE_8BIT,data,len,LIS2MDL_I2C_TIMEOUT_MS);
 	if (ret != HAL_OK) return ret;
 	
 	return HAL_OK;
@@ -73,7 +78,7 @@ static HAL_StatusTypeDef LIS2MDL_I2C_Read(lis2mdl_t *dev,uint8_t reg, uint8_t *d
 {
 	HAL_StatusTypeDef ret;
 	
-	ret = HAL_I2C_Mem_Read(dev->hi2c,I2C_ADDR << 1,reg,I2C_MEMADD_SIZE_8BIT,data,len,1000);
+	ret = HAL_I2C_Mem_Read(dev->bus_cfg.i2c.hi2c,LIS2MDL_I2C_ADDR << 1,reg,I2C_MEMADD_SIZE_8BIT,data,len,LIS2MDL_I2C_TIMEOUT_MS);
 	if (ret != HAL_OK) return ret;
 	
 	return HAL_OK;
@@ -81,18 +86,12 @@ static HAL_StatusTypeDef LIS2MDL_I2C_Read(lis2mdl_t *dev,uint8_t reg, uint8_t *d
 
 static HAL_StatusTypeDef LIS2MDL_I2C_Init(lis2mdl_t *dev)
 {
-	
-	
 	dev->read = LIS2MDL_I2C_Read;
 	dev->write = LIS2MDL_I2C_Write;
 	
-	if(dev->hi2c && dev->cs_port)
-	{
-		HAL_GPIO_WritePin(dev->cs_port, dev->cs_pin, GPIO_PIN_SET);
-	}
-	
 	return HAL_OK;
 }
+#endif
 
 static HAL_StatusTypeDef LIS2MDL_Read(lis2mdl_t *dev, uint8_t reg, uint8_t *data,uint16_t len)
 {
@@ -117,16 +116,25 @@ HAL_StatusTypeDef LIS2MDL_Init(lis2mdl_t *dev)
 	
 	if(dev == NULL) return HAL_ERROR;
 	
-	if (dev->hi2c && dev->hspi) return HAL_ERROR;
-	if(!dev->hi2c && !dev->hspi) return HAL_ERROR;
-	
-	if(dev->hi2c){
-		ret = LIS2MDL_I2C_Init(dev);
-		if(ret!=HAL_OK) return ret;
-	} else if (dev->hspi){
-		ret = LIS2MDL_SPI_Init(dev);	
-		if(ret!=HAL_OK) return ret;		
+	switch (dev->bus) {
+
+		#if defined(HAL_I2C_MODULE_ENABLED)
+				case LIS2MDL_BUS_I2C:
+					ret = LIS2MDL_I2C_Init(dev);
+					break;
+		#endif
+
+		#if defined(HAL_SPI_MODULE_ENABLED)
+				case LIS2MDL_BUS_SPI:
+					ret = LIS2MDL_SPI_Init(dev);
+					break;
+		#endif
+
+		default:
+			return HAL_ERROR;
 	}
+	
+	if (ret != HAL_OK) return ret;
 	
 	ret = LIS2MDL_Read(dev, LIS2MDL_WHO_AM_I, &who, 1);
 	if (ret != HAL_OK || who != LIS2MDL_WHO_AM_I_VALUE) return HAL_ERROR;
@@ -142,7 +150,7 @@ HAL_StatusTypeDef LIS2MDL_Config(lis2mdl_t *dev, lis2mdl_cfg_t *cfg)
 	
 	if ((cfg->int_drdy == LIS2MDL_INT_ON_DRDY_PIN) && (cfg->drdy == LIS2MDL_DRDY_ENABLE)) return HAL_ERROR;
 	
-	if(dev->hi2c)
+	if(dev->bus == LIS2MDL_BUS_I2C)
 	{
 		if ((cfg->spi_mode == LIS2MDL_SPI_4WIRE)||(cfg->i2c_dis == LIS2MDL_I2C_DISABLE)) return HAL_ERROR;
 	}
@@ -154,7 +162,7 @@ HAL_StatusTypeDef LIS2MDL_Config(lis2mdl_t *dev, lis2mdl_cfg_t *cfg)
 	
 	ret = LIS2MDL_Write(dev, LIS2MDL_CFG_REG_A, data, 3);
 	if (ret != HAL_OK) return ret;
-	
+
 	return HAL_OK;
 }
 
@@ -165,7 +173,7 @@ HAL_StatusTypeDef LIS2MDL_Interrupt_Config(lis2mdl_t *dev, lis2mdl_int_cfg_t *in
 	
 	if (dev == NULL || int_cfg == NULL) return HAL_ERROR;
 	
-	if(dev->hi2c && int_cfg->global_enable && dev->i2c_int_port == NULL) return HAL_ERROR;
+	if(dev->bus_cfg.i2c.hi2c && int_cfg->global_enable && dev->bus_cfg.i2c.int_port == NULL) return HAL_ERROR;
 	
 	data = (((int_cfg->x_enable & 0x01) << 7) | ((int_cfg->y_enable & 0x01) << 6) | ((int_cfg->z_enable& 0x01) << 5) | ((int_cfg->polarity & 0x01) << 2) | ((int_cfg->latch & 0x01) << 1) | (int_cfg->global_enable & 0x01));
 	
@@ -326,7 +334,7 @@ HAL_StatusTypeDef LIS2MDL_Read_Temperature(lis2mdl_t *dev, float *temp)
 	
 	raw = (data[1]<<8) | data[0];
 	
-	*temp = (float)raw/LIS2MDL_TEMPERATURE_SENSITIVITY;
+	*temp = 25.0f + ((float)raw / LIS2MDL_TEMPERATURE_SENSITIVITY);
 	
 	return HAL_OK;
 }
